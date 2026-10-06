@@ -12,6 +12,7 @@ import tools.jackson.databind.deser.SettableBeanProperty;
 import tools.jackson.databind.deser.ValueInstantiator;
 import tools.jackson.databind.deser.impl.ManagedReferenceProperty;
 import tools.jackson.databind.deser.impl.ObjectIdReader;
+import tools.jackson.databind.util.ClassUtil;
 import tools.jackson.databind.util.IgnorePropertiesUtil;
 import tools.jackson.databind.util.NameTransformer;
 
@@ -115,8 +116,19 @@ public final class PropertyBasedCreator
                             aliasLookup = new HashMap<>();
                         }
                         for (PropertyName pn : aliases) {
-                            _propertyLookup.put(pn.getSimpleName(), prop);
-                            aliasLookup.put(pn.getSimpleName(), prop);
+                            final String aliasName = pn.getSimpleName();
+                            // Pre-check: two distinct creator parameters must not share
+                            //    one input name; report both sides before the creator
+                            //    (constructor/factory method) is ever invoked
+                            SettableBeanProperty existing = _propertyLookup.get(aliasName);
+                            if ((existing != null) && (existing != prop)) {
+                                ctxt.reportBadDefinition(
+                                        ctxt.constructType(valueInstantiator.getValueClass()),
+                                        _aliasConflictMessage(valueInstantiator,
+                                                aliasName, existing, prop));
+                            }
+                            _propertyLookup.put(aliasName, prop);
+                            aliasLookup.put(aliasName, prop);
                         }
                     }
                 }
@@ -453,6 +465,30 @@ public final class PropertyBasedCreator
             }
         }
         return bean;
+    }
+
+    /*
+    /**********************************************************************
+    /* Helper methods
+    /**********************************************************************
+     */
+
+    /**
+     * Helper for constructing a message that reports both creator parameters
+     * claiming the same alias (input name), including their positions.
+     */
+    private static String _aliasConflictMessage(ValueInstantiator valueInstantiator,
+            String aliasName, SettableBeanProperty first, SettableBeanProperty second)
+    {
+        return String.format(
+                "Conflicting creator parameter aliases: alias \"%s\" claimed by both %s and %s of %s",
+                aliasName, _creatorParamDesc(first), _creatorParamDesc(second),
+                ClassUtil.nameOf(valueInstantiator.getValueClass()));
+    }
+
+    private static String _creatorParamDesc(SettableBeanProperty prop) {
+        return String.format("creator parameter #%d (property \"%s\")",
+                prop.getCreatorIndex(), prop.getName());
     }
 
     /*
