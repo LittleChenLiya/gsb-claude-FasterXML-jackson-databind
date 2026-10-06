@@ -115,8 +115,16 @@ public final class PropertyBasedCreator
                             aliasLookup = new HashMap<>();
                         }
                         for (PropertyName pn : aliases) {
-                            _propertyLookup.put(pn.getSimpleName(), prop);
+                            SettableBeanProperty prev = _propertyLookup.put(pn.getSimpleName(), prop);
                             aliasLookup.put(pn.getSimpleName(), prop);
+                            // 06-Oct-2026: pre-check for two distinct creator parameters
+                            //    bound to the same input name (alias); must fail before
+                            //    the creator (constructor/factory) is ever invoked
+                            if ((prev != null) && (prev != prop)) {
+                                ctxt.reportBadDefinition(
+                                        ctxt.constructType(valueInstantiator.getValueClass()),
+                                        _aliasConflictMessage(pn.getSimpleName(), prev, prop));
+                            }
                         }
                     }
                 }
@@ -151,6 +159,23 @@ public final class PropertyBasedCreator
         _hasManagedReferenceProperties = hasManagedRef;
         _filteredLookup = _propertyLookup;
         _aliasLookup = aliasLookup;
+    }
+
+    /**
+     * Helper method for constructing a message describing an alias conflict
+     * between two distinct creator parameters, identifying both positions
+     * (creator parameter indexes and logical property names).
+     */
+    protected String _aliasConflictMessage(String alias,
+            SettableBeanProperty first, SettableBeanProperty second)
+    {
+        return String.format(
+                "Conflicting creator parameter aliases: alias \"%s\" bound to both "
+                + "constructor parameter #%d (property \"%s\") and "
+                + "constructor parameter #%d (property \"%s\")",
+                alias,
+                first.getCreatorIndex(), first.getName(),
+                second.getCreatorIndex(), second.getName());
     }
 
     /**
