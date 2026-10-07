@@ -132,6 +132,47 @@ public abstract class DeserializationProblemHandler
     }
 
     /**
+     * Method called when an Enum deserializer encounters a String value that
+     * does not match any of the accepted Enum constants. It is called
+     * <b>before</b> the configured fallback handling for unknown Enum values
+     * ({@link tools.jackson.databind.cfg.EnumFeature#READ_UNKNOWN_ENUM_VALUES_USING_DEFAULT_VALUE},
+     * {@link tools.jackson.databind.cfg.EnumFeature#READ_UNKNOWN_ENUM_VALUES_AS_NULL}
+     * or, failing those, {@link #handleWeirdStringValue}) is applied.
+     * This makes it possible to observe (record) unknown Enum values regardless
+     * of the fallback strategy in effect.
+     * Handler may choose to do one of 3 things:
+     *<ul>
+     * <li>Indicate it does not know what to do by returning {@link #NOT_HANDLED},
+     *    in which case the regular fallback handling proceeds unchanged
+     *  </li>
+     * <li>Throw a {@link IOException} to indicate specific fail message (instead of
+     *    standard exception caller would throw)
+     *  </li>
+     * <li>Return actual value (of type <code>enumClass</code>) to use as
+     *    replacement, and continue processing (bypassing the regular fallback).
+     *  </li>
+     * </ul>
+     *<p>
+     * Default implementation returns {@link #NOT_HANDLED} so behavior is
+     * unchanged unless a handler explicitly overrides this method.
+     *
+     * @param ctxt Deserialization context
+     * @param enumClass Enum type being deserialized
+     * @param enumValueText Unknown Enum value text from input
+     * @param deserializer Enum deserializer that encountered the unknown value
+     *
+     * @return Either {@link #NOT_HANDLED} to indicate that handler does not know
+     *    what to do (and regular fallback handling proceeds), or value to use
+     *    (possibly <code>null</code>)
+     */
+    public Object handleUnknownEnumValue(DeserializationContext ctxt,
+            Class<?> enumClass, String enumValueText, ValueDeserializer<?> deserializer)
+        throws JacksonException
+    {
+        return NOT_HANDLED;
+    }
+
+    /**
      * Method called when a numeric value (integral or floating-point from input
      * cannot be converted to a non-numeric value type due to specific problem
      * (as opposed to numeric values never being usable).

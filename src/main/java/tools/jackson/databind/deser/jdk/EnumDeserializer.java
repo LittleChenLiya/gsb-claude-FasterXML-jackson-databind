@@ -9,6 +9,7 @@ import tools.jackson.core.*;
 import tools.jackson.databind.*;
 import tools.jackson.databind.annotation.JacksonStdImpl;
 import tools.jackson.databind.cfg.*;
+import tools.jackson.databind.deser.DeserializationProblemHandler;
 import tools.jackson.databind.deser.SettableBeanProperty;
 import tools.jackson.databind.deser.ValueInstantiator;
 import tools.jackson.databind.deser.std.StdScalarDeserializer;
@@ -418,6 +419,13 @@ public class EnumDeserializer
                     }
                 }
             }
+        }
+        // 07-Oct-2026: give problem handlers a chance to observe (record) and
+        //   optionally replace unknown Enum values before the configured
+        //   fallback (default value / null / fail) is applied
+        Object handled = ctxt.handleUnknownEnumValue(_enumClass(), name, this);
+        if (handled != DeserializationProblemHandler.NOT_HANDLED) {
+            return handled;
         }
         if (useDefaultValueForUnknownEnum(ctxt)) {
             return _enumDefaultValue;

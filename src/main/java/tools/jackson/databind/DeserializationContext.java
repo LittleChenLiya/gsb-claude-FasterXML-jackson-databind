@@ -1495,6 +1495,47 @@ public abstract class DeserializationContext
     }
 
     /**
+     * Method that Enum deserializers should call if they encounter a String value
+     * that does not match any of the accepted Enum constants, before applying
+     * configured fallback handling (default value / {@code null} / failure).
+     * Default implementation will call
+     * {@link DeserializationProblemHandler#handleUnknownEnumValue}
+     * on configured handlers, if any; if no handler produces a replacement value,
+     * {@link DeserializationProblemHandler#NOT_HANDLED} is returned and caller
+     * proceeds with the regular fallback handling.
+     *
+     * @param enumClass Enum type being deserialized
+     * @param enumValueText Unknown Enum value text from input
+     * @param deser Enum deserializer that encountered the unknown value
+     *
+     * @return Replacement value to use, or {@link DeserializationProblemHandler#NOT_HANDLED}
+     *    if no handler produced one
+     */
+    public Object handleUnknownEnumValue(Class<?> enumClass, String enumValueText,
+            ValueDeserializer<?> deser)
+        throws JacksonException
+    {
+        LinkedNode<DeserializationProblemHandler> h = _config.getProblemHandlers();
+        while (h != null) {
+            Object instance = h.value().handleUnknownEnumValue(this, enumClass,
+                    enumValueText, deser);
+            if (instance != DeserializationProblemHandler.NOT_HANDLED) {
+                // Sanity check for broken handlers, otherwise nasty to debug:
+                if (_isCompatible(enumClass, instance)) {
+                    return instance;
+                }
+                throw weirdStringException(enumValueText, enumClass, String.format(
+                        "`DeserializationProblemHandler.handleUnknownEnumValue()` for type %s returned value of type %s",
+                        ClassUtil.getClassDescription(enumClass),
+                        ClassUtil.getClassDescription(instance)
+                ));
+            }
+            h = h.next();
+        }
+        return DeserializationProblemHandler.NOT_HANDLED;
+    }
+
+    /**
      * Method that deserializers should call if they encounter a numeric value
      * that cannot be converted to target property type, in cases where some
      * numeric values could be acceptable (either with different settings,
