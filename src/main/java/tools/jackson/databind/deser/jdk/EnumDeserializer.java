@@ -9,6 +9,7 @@ import tools.jackson.core.*;
 import tools.jackson.databind.*;
 import tools.jackson.databind.annotation.JacksonStdImpl;
 import tools.jackson.databind.cfg.*;
+import tools.jackson.databind.deser.DeserializationProblemHandler;
 import tools.jackson.databind.deser.SettableBeanProperty;
 import tools.jackson.databind.deser.ValueInstantiator;
 import tools.jackson.databind.deser.std.StdScalarDeserializer;
@@ -18,6 +19,7 @@ import tools.jackson.databind.type.LogicalType;
 import tools.jackson.databind.util.ClassUtil;
 import tools.jackson.databind.util.CompactStringObjectMap;
 import tools.jackson.databind.util.EnumResolver;
+import tools.jackson.databind.util.LinkedNode;
 
 /**
  * Deserializer class that can deserialize instances of
@@ -419,6 +421,10 @@ public class EnumDeserializer
                 }
             }
         }
+        // Notification happens BEFORE the fallback decision so that it fires
+        // regardless of which of the three strategies (default/null/reject)
+        // ultimately handles the unknown textual value:
+        _reportUnknownEnumValue(p, ctxt, name, lookup);
         if (useDefaultValueForUnknownEnum(ctxt)) {
             return _enumDefaultValue;
         }
@@ -427,6 +433,24 @@ public class EnumDeserializer
         }
         return ctxt.handleWeirdStringValue(_enumClass(), name,
                 "not one of the values accepted for Enum class: %s", lookup.keys());
+    }
+
+    /**
+     * Notifies registered {@link DeserializationProblemHandler}s that an unknown
+     * textual enum value was encountered. Notification-only: fallback decision
+     * (default value / null / failure) made by the caller afterwards is left
+     * unchanged.
+     *
+     * @since 3.3
+     */
+    private void _reportUnknownEnumValue(JsonParser p, DeserializationContext ctxt,
+            String value, CompactStringObjectMap lookup)
+        throws JacksonException
+    {
+        LinkedNode<DeserializationProblemHandler> h = ctxt.getConfig().getProblemHandlers();
+        for (; h != null; h = h.next()) {
+            h.value().reportUnknownEnumValue(ctxt, p, _enumClass(), value, lookup.keys());
+        }
     }
 
     protected Object _deserializeOther(JsonParser p, DeserializationContext ctxt)

@@ -19,6 +19,9 @@ import tools.jackson.databind.cfg.DeserializationContexts;
 import tools.jackson.databind.deser.CollectingProblemHandler;
 import tools.jackson.databind.deser.DeserializationContextExt;
 import tools.jackson.databind.deser.DeserializationProblemHandler;
+import tools.jackson.databind.deser.RecordingUnknownEnumHandler;
+import tools.jackson.databind.deser.UnknownEnumValue;
+import tools.jackson.databind.deser.UnknownEnumValueResult;
 import tools.jackson.databind.exc.CollectedProblem;
 import tools.jackson.databind.exc.DeferredBindingException;
 import tools.jackson.databind.node.ArrayNode;
@@ -1544,6 +1547,88 @@ public class ObjectReader
         DeserializationContextExt ctxt = _deserializationContext();
         return _collectingBindAndClose(ctxt,
                 _considerFilter(_parserFactory.createParser(ctxt, src), false));
+    }
+
+    /*
+    /**********************************************************************
+    /* Deserialization methods with unknown-enum-value recording
+    /**********************************************************************
+     */
+
+    /**
+     * Deserializes JSON content like {@link #readValue(JsonParser)}, additionally
+     * recording every unknown (unrecognized) textual {@link Enum} value
+     * encountered, without changing how each one is resolved.
+     *
+     * <p>The existing fallback decision is preserved &mdash; unknown enum values
+     * still become the enum's default value, {@code null}, or cause an exception,
+     * depending on {@code EnumFeature.READ_UNKNOWN_ENUM_VALUES_USING_DEFAULT_VALUE},
+     * {@code EnumFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL} (and per-property
+     * {@code @JsonFormat} overrides). The three strategies are never overridden
+     * by recording.
+     *
+     * <p>A fresh {@link RecordingUnknownEnumHandler} is registered (unless one is
+     * already present) and a fresh recording bucket is allocated for THIS call,
+     * stored in per-call context attributes: records of this call do not leak
+     * into subsequent reads of the same reader.
+     *
+     * @param <T> Type to deserialize
+     * @param p JsonParser to read from (will not be closed by this method)
+     * @return Deserialized value plus the per-call list of unknown enum values
+     *
+     * @since 3.3
+     */
+    public <T> UnknownEnumValueResult<T> readValueRecordingUnknownEnums(JsonParser p)
+            throws JacksonException {
+        _assertNotNull("p", p);
+        ObjectReader r = _hasRecordingUnknownEnumHandler() ? this
+                : _with(_config.withHandler(RecordingUnknownEnumHandler.instance()));
+        DeserializationContextExt ctxt = r._deserializationContext();
+        return r._recordUnknownEnums(ctxt, p);
+    }
+
+    /**
+     * Convenience overload of {@link #readValueRecordingUnknownEnums(JsonParser)}
+     * for {@code String} content.
+     *
+     * @since 3.3
+     */
+    public <T> UnknownEnumValueResult<T> readValueRecordingUnknownEnums(String content)
+            throws JacksonException {
+        _assertNotNull("content", content);
+        ObjectReader r = _hasRecordingUnknownEnumHandler() ? this
+                : _with(_config.withHandler(RecordingUnknownEnumHandler.instance()));
+        DeserializationContextExt ctxt = r._deserializationContext();
+        try (JsonParser p = _considerFilter(_parserFactory.createParser(ctxt, content), false)) {
+            return r._recordUnknownEnums(ctxt, p);
+        }
+    }
+
+    /**
+     * Internal helper: allocates the per-call bucket, runs {@link #_bind} and
+     * returns value together with recorded unknown enum values.
+     *
+     * @since 3.3
+     */
+    @SuppressWarnings("unchecked")
+    private <T> UnknownEnumValueResult<T> _recordUnknownEnums(DeserializationContextExt ctxt,
+            JsonParser p) throws JacksonException {
+        // CRITICAL: fresh bucket per call -> call isolation, thread-safety
+        List<UnknownEnumValue> bucket = new ArrayList<>();
+        ctxt.setAttribute(RecordingUnknownEnumHandler.ATTRIBUTE_KEY, bucket);
+        T value = (T) _bind(ctxt, p, _valueToUpdate);
+        return new UnknownEnumValueResult<>(value, bucket);
+    }
+
+    private boolean _hasRecordingUnknownEnumHandler() {
+        LinkedNode<DeserializationProblemHandler> h = _config.getProblemHandlers();
+        while (h != null) {
+            if (h.value() instanceof RecordingUnknownEnumHandler) {
+                return true;
+            }
+            h = h.next();
+        }
+        return false;
     }
 
     /*

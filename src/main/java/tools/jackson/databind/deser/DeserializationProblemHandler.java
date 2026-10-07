@@ -1,6 +1,7 @@
 package tools.jackson.databind.deser;
 
 import java.io.IOException;
+import java.util.Collection;
 
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.JsonParser;
@@ -130,6 +131,45 @@ public abstract class DeserializationProblemHandler
     {
         return NOT_HANDLED;
     }
+
+    /**
+     * Notification method called when an unknown (unrecognized) textual value
+     * is encountered while deserializing an {@link Enum} value, <b>before</b>
+     * the configured fallback decision (default value, {@code null}, or
+     * exception) is applied.
+     *<p>
+     * Unlike the other callback methods, this is a <i>notification-only</i>
+     * hook: it cannot substitute another value or suppress the fallback.
+     * After the method returns (normally), enum deserialization continues with
+     * whatever the existing configuration dictates &mdash; that is, unknown
+     * enum values are handled exactly as if no handler had been registered:
+     *<ul>
+     * <li>enum's default value (see
+     *     {@link tools.jackson.databind.cfg.EnumFeature#READ_UNKNOWN_ENUM_VALUES_USING_DEFAULT_VALUE}
+     *     or {@code @JsonFormat} equivalent),</li>
+     * <li>{@code null} (see
+     *     {@link tools.jackson.databind.cfg.EnumFeature#READ_UNKNOWN_ENUM_VALUES_AS_NULL}
+     *     or {@code @JsonFormat} equivalent), or</li>
+     * <li>a {@link tools.jackson.databind.exc.InvalidFormatException} if neither
+     *     lenient strategy is enabled.</li>
+     *</ul>
+     * The only way for an implementation to reject the input is to throw an
+     * exception.
+     *
+     * @param ctxt Deserialization context
+     * @param p Parser positioned over the unknown enum value
+     * @param enumClass Enum type being deserialized
+     * @param valueToConvert Textual input value that did not match any known
+     *   enum constant (already whitespace-trimmed)
+     * @param acceptableValues Known accepted values, for diagnostics
+     *
+     * @since 3.3
+     */
+    public void reportUnknownEnumValue(DeserializationContext ctxt,
+            JsonParser p, Class<?> enumClass,
+            String valueToConvert, Collection<String> acceptableValues)
+        throws JacksonException
+    { }
 
     /**
      * Method called when a numeric value (integral or floating-point from input
