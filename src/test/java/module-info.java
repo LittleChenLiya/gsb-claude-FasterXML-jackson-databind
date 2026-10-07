@@ -56,6 +56,7 @@ module tools.jackson.databind
     opens tools.jackson.databind.ser.jdk;
     opens tools.jackson.databind.ser.std;
     opens tools.jackson.databind.type;
+    opens tools.jackson.databind.update;
     opens tools.jackson.databind.util;
 
     // Additional test opens (not exported by main, or needed from src/test/java)

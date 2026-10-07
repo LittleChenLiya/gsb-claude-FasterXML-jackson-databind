@@ -58,6 +58,7 @@ module tools.jackson.databind
     exports tools.jackson.databind.ser.jdk;
     exports tools.jackson.databind.ser.std;
     exports tools.jackson.databind.type;
+    exports tools.jackson.databind.update;
     exports tools.jackson.databind.util;
 
     // [databind#2485]: prevent warning for "unused" with self-use

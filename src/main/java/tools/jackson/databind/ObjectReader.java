@@ -24,6 +24,8 @@ import tools.jackson.databind.exc.DeferredBindingException;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.update.MapDeletionUpdater;
+import tools.jackson.databind.update.DeletionMarker;
 import tools.jackson.databind.node.TreeTraversingParser;
 import tools.jackson.databind.type.SimpleType;
 import tools.jackson.databind.type.TypeFactory;
@@ -670,6 +672,36 @@ public class ObjectReader
         }
         return _new(this, _config, t, _rootDeserializer, value,
                 _schema, _injectableValues);
+    }
+
+    /**
+     * Update adapter entry point: merge values from given overrides Map into
+     * given Map value using this reader's update data flow, while honoring
+     * explicitly declared deletion markers.
+     *<p>
+     * A value of {@link DeletionMarker#INSTANCE}
+     * at an overrides entry requests removal of the corresponding existing
+     * key (exact path only: same-named keys in other paths are never
+     * removed); any other {@code null} value keeps going through the original
+     * {@code null}-handling configuration (typically the key is set to
+     * {@code null}).
+     *<p>
+     * All declared deletion paths are validated before the target is modified:
+     * if any path is invalid (for example, an intermediate segment is not a
+     * nested Map), an {@link IllegalArgumentException} is thrown and
+     * {@code valueToUpdate} is left completely unchanged.
+     *
+     * @param valueToUpdate root Map to update
+     * @param overrides Map of override values; may contain
+     *     {@link DeletionMarker} leaves
+     *
+     * @return the updated {@code valueToUpdate}
+     *
+     * @since 3.3
+     */
+    public <T> T updateValue(T valueToUpdate, Map<?,?> overrides) {
+        return new MapDeletionUpdater(this)
+                .update(valueToUpdate, overrides);
     }
 
     /**

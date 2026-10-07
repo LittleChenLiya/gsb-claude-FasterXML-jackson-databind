@@ -107,4 +107,38 @@ public class UpdateValueTest
         List<String> input = new ArrayList<>();
         assertSame(input, MAPPER.updateValue(input, null));
     }
+
+    /**
+     * Short regression for the default {@code updateValue} data flow on a
+     * two-level Map with same-named keys: nested maps are merged (the
+     * existing nested key survives) and an ordinary {@code null} sets the
+     * value to {@code null} instead of removing the key.
+     */
+    @Test
+    public void testNestedMapMergeAndNullRegression() throws Exception
+    {
+        Map<String,Object> nested = new LinkedHashMap<>();
+        nested.put("name", "nested");
+        nested.put("keep", Integer.valueOf(1));
+        Map<String,Object> base = new LinkedHashMap<>();
+        base.put("name", "root");
+        base.put("outer", nested);
+
+        Map<String,Object> nestedOverride = new LinkedHashMap<>();
+        nestedOverride.put("name", null); // plain null: key stays, value null
+        Map<String,Object> overrides = new LinkedHashMap<>();
+        overrides.put("outer", nestedOverride);
+        overrides.put("added", Integer.valueOf(7));
+
+        Map<String,Object> result = MAPPER.updateValue(base, overrides);
+        assertSame(base, result);
+        assertEquals("root", result.get("name"));
+        assertEquals(Integer.valueOf(7), result.get("added"));
+
+        @SuppressWarnings("unchecked")
+        Map<String,Object> mergedNested = (Map<String,Object>) result.get("outer");
+        assertTrue(mergedNested.containsKey("name"));
+        assertNull(mergedNested.get("name"));
+        assertEquals(Integer.valueOf(1), mergedNested.get("keep"));
+    }
 }
